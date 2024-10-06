@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: observability
+  labels:
+    app: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:latest
+          ports:
+            - containerPort: 16686  # Jaeger UI
+            - containerPort: 9411   # Zipkin
+            - containerPort: 4317   # OTLP
+            - containerPort: 4318   # HTTP Protobuf
+          env:
+            - name: COLLECTOR_ZIPKIN_HOST_PORT
+              value: ":9411" # Allows the collector to handle Zipkin spans
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true" # Enable OTLP endpoint
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: observability
+  labels:
+    app: jaeger
+spec:
+  type: ClusterIP
+  ports:
+    - name: ui
+      port: 16686
+      targetPort: 16686
+    - name: zipkin
+      port: 9411
+      targetPort: 9411
+    - name: otlp
+      port: 4317
+      targetPort: 4317
+    - name: http-protobuf
+      port: 4318
+      targetPort: 4318
+  selector:
+    app: jaeger
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: jaeger-gateway
+  namespace: observability
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "jaeger.example.com"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: jaeger
+  namespace: observability
+spec:
+  hosts:
+    - "jaeger.example.com"
+  gateways:
+    - jaeger-gateway
+  http:
+    - match:
+        - uri:
+            prefix: "/"
+      route:
+        - destination:
+            host: jaeger
+            port:
+              number: 16686
+
