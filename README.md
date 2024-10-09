@@ -34,6 +34,42 @@ kubectl patch --namespace knative-serving configmap/config-tracing \
 --patch '{"data":{"backend":"zipkin","zipkin-endpoint":"http://jaeger.observability:9411/api/v2/spans", "debug": "true"}}'
 ```
 
+## kserve-cotainer (VLLM)
+### Build VLLM Docker Image 
+- Add opentelemetry libraries, which are needed to enable otlp option
+```bash
+docker build -t dev.local/vllm-otel:v0.6.2 ./vllm
+```
+
+### Run VLLM
+```bash
+kubectl -n kserve-test apply -f vllm-otel.yaml
+```
+
+### Test
+```bash
+curl -X 'POST' \
+  'http://vllm-opt-125m-predictor.kserve-test.example.com:31976/v1/completions' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "model": "facebook/opt-125m",
+        "prompt": "San Francisco is a",
+        "max_tokens": 7,
+        "temperature": 0
+    }'
+```
+
+![Trace Result](./docs/trace-result.png)
+- ⚠️ NOT all apis are traced. 
+  - `/v1/models` is not traced
+  - `/v1/completions` is traced.
+
+
+## Debug Log
+- This Section is for record only
+
+<details>
 
 ## Debug `kserve-container`
 ```bash
@@ -86,3 +122,28 @@ curl -v -H "Content-Type: application/json" http://sklearn-iris.kserve-test.exam
   .
   
   ```
+</details>
+
+## Reference
+### VLLM
+- [VLLM OpenTelemetry](https://github.com/vllm-project/vllm/blob/main/examples/production_monitoring/Otel.md)
+- [VLLM on Pascal GPU](https://github.com/sasha0552/pascal-pkgs-ci)
+  - Unoffcial support for Pascal GPU
+  - Very Cool Project, Huge thanks to sasha0552
+- [Kserve & VLLM](https://kserve.github.io/website/latest/modelserving/v1beta1/llm/vllm/#deploy-the-llama-model-with-vllm-runtime)
+
+### Kserve
+- [Kserve quickstart](https://kserve.github.io/website/latest/get_started/)
+- [KNative OpenTelemetry](https://knative.dev/blog/articles/distributed-tracing/)
+  - KNative Setting automatically applied to Kserver because Kserve uses KNative
+  - Even though KNavtive uses opencensus(zipkin), 'traceparent' HTTP Header should propagate trace context to opentelemetry library.
+- [How to store model weight in PV](https://github.com/kserve/modelmesh-serving/blob/main/docs/predictors/setup-storage.md#deploy-a-model-stored-on-a-persistent-volume-claim)
+
+### Trace
+- [W3C Trace Context](https://www.w3.org/TR/trace-context/)
+
+### CUDA & Kubernetest & Docker Desktop & WSL
+- [Cuda on WSL](https://docs.nvidia.com/cuda/wsl-user-guide/index.html)
+- [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#installing-the-nvidia-container-toolkit)
+- [Nvidia/k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin)
+- [Docker Desktop - Nvidia Container Toolkit setting](https://stackoverflow.com/a/77343231/10722255)

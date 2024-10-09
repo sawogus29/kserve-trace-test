@@ -1,0 +1,70 @@
+# https://kserve.github.io/website/latest/modelserving/v1beta1/llm/vllm/#deploy-the-llama-model-with-vllm-runtime
+apiVersion: "serving.kserve.io/v1beta1"
+kind: InferenceService
+metadata:
+  name: "vllm-opt-125m"
+spec:
+  predictor:
+    containers:
+    - env:
+        - name: OTEL_SERVICE_NAME
+          value: kserve-container
+        - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+          value: http/protobuf
+      args:
+        - "--model"
+        - "facebook/opt-125m"
+        - "--port"
+        - "8080"
+        - '--otlp-traces-endpoint=http://jaeger.observability:4318/v1/traces'
+      # command:
+      #   - python3
+      #   - -m
+      #   - vllm.entrypoints.openai.api_server
+      image: dev.local/vllm-otel:v0.6.2
+      name: kserve-container
+      ports:
+      - containerPort: 8080
+      resources:
+        limits:
+          cpu: "4"
+          memory: 6Gi
+          #--------- 'WSL2 & Docker Desktop' configuration -----------------
+          # By default, 'WSL2 & Docker Desktop' setup doesn't have 'nvidia.com/gpu' setting.
+          # So, Additioanl configuration is needed.
+          #
+          # [nvidia-container-toolkit](https://docs.nvidia.com/ai-enterprise/deployment-guide-vmware/0.1.0/docker.html) 
+          # - This is a dependency of k8s-device-plugin
+          # 
+          # [Docker Configuration]: https://stackoverflow.com/a/77343231/10722255
+          # - MUST Edit 'docker desktop > Settings > Docker Engine' (NOT /etc/docker/daemon.json)
+          # {
+          #   ...(clip for brevity)...
+          #   "default-runtime": "nvidia",      👈 In my case, this addtional setting was needed (above link didn't specify it)
+          #   "runtimes": {
+          #     "nvidia": {
+          #       "path": "nvidia-container-runtime",
+          #       "runtimeArgs": []
+          #     }
+          #   }
+          # }
+          #
+          # [k8s-device-plugin](https://github.com/NVIDIA/k8s-device-plugin)
+          # - A Plugin which add NVIDA GPU INFO to kubernetes node
+          # - kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.16.1/deployments/static/nvidia-device-plugin.yml
+          #
+          # As a result, `kubectl describe node <node_name>` should look like below.
+          # ...
+          # allocated resources:
+          #   (total limits may be over 100 percent, i.e., overcommitted.)
+          #   resource           requests      limits
+          #   --------           --------      ------
+          #   cpu                2925m (36%)   10100m (126%)
+          #   memory             7332mi (61%)  11508mi (96%)
+          #   ...
+          #   nvidia.com/gpu     1             1
+          nvidia.com/gpu: "1"
+        requests:
+          cpu: "1"
+          memory: 6gi
+          nvidia.com/gpu: "1"
