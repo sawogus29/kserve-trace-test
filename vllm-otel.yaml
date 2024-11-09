@@ -66,5 +66,5 @@ spec:
           nvidia.com/gpu: "1"
         requests:
           cpu: "1"
-          memory: 6gi
+          memory: 6Gi
           nvidia.com/gpu: "1"
